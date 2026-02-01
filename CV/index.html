@@ -1,0 +1,311 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Spotify - Web Player</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;600;700;800&display=swap" rel="stylesheet">
+    
+    <style>
+        /* --- RESET & COMPACT BASE --- */
+        * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Montserrat', sans-serif; }
+        
+        /* 11px font size for ultra-compact "zoomed out" look */
+        body { background-color: #000; color: #fff; overflow: hidden; font-size: 11px; } 
+
+        /* Custom Scrollbar (Thin & Dark) */
+        ::-webkit-scrollbar { width: 10px; }
+        ::-webkit-scrollbar-thumb { background-color: #5a5a5a; border-radius: 10px; border: 2px solid #121212; }
+        ::-webkit-scrollbar-track { background: #121212; }
+
+        /* Main Layout - Full Height, No Footer */
+        .app-layout { display: flex; height: 100vh; padding: 6px; gap: 6px; }
+
+        /* --- SIDEBAR --- */
+        .sidebar { 
+            width: 220px; /* Fixed compact width */
+            background-color: #121212; border-radius: 6px; 
+            display: flex; flex-direction: column; gap: 6px; padding: 6px;
+        }
+        .nav-box { background: #121212; padding: 8px 16px; border-radius: 6px; }
+        .nav-item { 
+            display: flex; align-items: center; gap: 12px; padding: 8px 0; 
+            opacity: 0.7; cursor: pointer; transition: 0.3s; font-weight: 700; font-size: 0.9rem;
+        }
+        .nav-item:hover { opacity: 1; color: #fff; }
+        .nav-item.active { opacity: 1; color: #fff; }
+
+        .library-list { margin-top: 10px; overflow-y: auto; flex: 1; /* Fills remaining height */ }
+        .lib-item { display: flex; gap: 10px; padding: 6px; border-radius: 4px; cursor: pointer; transition: 0.2s; }
+        .lib-item:hover { background-color: #1f1f1f; }
+        .lib-img { width: 40px; height: 40px; border-radius: 4px; background: #333; object-fit: cover; }
+        .lib-info h4 { font-size: 0.9rem; margin-bottom: 2px; color: #fff; }
+        .lib-info p { font-size: 0.75rem; color: #b3b3b3; }
+
+        /* --- MAIN VIEW --- */
+        .home-view { 
+            flex: 1; background: linear-gradient(180deg, #220e36 0%, #121212 250px); 
+            border-radius: 6px; overflow-y: auto; position: relative;
+        }
+
+        /* --- STICKY HEADER --- */
+        .top-header {
+            display: flex; justify-content: space-between; align-items: center;
+            padding: 10px 20px; position: sticky; top: 0; z-index: 20;
+            background-color: transparent; transition: background-color 0.3s ease;
+        }
+        .top-header.scrolled { background-color: #070707; box-shadow: 0 4px 8px rgba(0,0,0,0.3); }
+
+        .nav-arrows { display: flex; gap: 6px; }
+        .arrow-btn {
+            background-color: rgba(0,0,0,0.7); color: #fff; border: none;
+            width: 26px; height: 26px; border-radius: 50%; display: flex; align-items: center; justify-content: center;
+            cursor: pointer;
+        }
+        .user-pill {
+            background-color: rgba(0,0,0,0.7); padding: 2px; padding-right: 10px; border-radius: 20px;
+            display: flex; align-items: center; gap: 6px; cursor: pointer; font-weight: 700; font-size: 0.8rem;
+        }
+        .user-pill:hover { background-color: #282828; transform: scale(1.02); }
+
+        /* --- CONTENT SECTIONS --- */
+        .content-container { padding: 0 20px 30px 20px; }
+        
+        .greeting { font-size: 1.8rem; font-weight: 700; margin-bottom: 20px; margin-top: 8px; }
+
+        /* --- HERO BANNER (Unwrapped) --- */
+        .wrapped-banner {
+            display: flex; align-items: flex-end; justify-content: space-between;
+            background: linear-gradient(90deg, #441865, #220e36);
+            padding: 20px; border-radius: 6px; margin-bottom: 24px;
+            transition: transform 0.3s; cursor: pointer;
+            box-shadow: 0 6px 20px rgba(0,0,0,0.3);
+        }
+        .wrapped-banner:hover { transform: scale(1.01); box-shadow: 0 8px 30px rgba(0,0,0,0.5); }
+        .banner-text p { font-size: 0.75rem; font-weight: 700; letter-spacing: 1.2px; margin-bottom: 6px; }
+        .banner-text h1 { font-size: 3.2rem; font-weight: 800; letter-spacing: -1.5px; line-height: 1; }
+        
+        .play-big-btn {
+            width: 42px; height: 42px; background-color: #1DB954; border-radius: 50%;
+            display: flex; align-items: center; justify-content: center;
+            box-shadow: 0 6px 8px rgba(0,0,0,0.3); transition: 0.3s; opacity: 0; transform: translateY(15px);
+        }
+        .wrapped-banner:hover .play-big-btn { opacity: 1; transform: translateY(0); }
+
+        /* --- CARDS GRID --- */
+        .section-title { font-size: 1.3rem; font-weight: 700; margin-bottom: 12px; margin-top: 24px; color: #fff; }
+        
+        .cards-grid {
+            /* Compact Grid: Cards shrink to 130px min-width */
+            display: grid; grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); gap: 12px;
+        }
+
+        .card {
+            background-color: #181818; padding: 12px; border-radius: 6px; 
+            transition: background-color 0.3s ease; cursor: pointer; position: relative;
+        }
+        .card:hover { background-color: #282828; }
+        
+        .card-img-wrapper { position: relative; margin-bottom: 10px; box-shadow: 0 6px 16px rgba(0,0,0,0.5); border-radius: 4px; overflow: hidden; }
+        .card-img { width: 100%; aspect-ratio: 1/1; object-fit: cover; display: block; }
+        
+        .play-btn-hover {
+            position: absolute; bottom: 6px; right: 6px;
+            width: 36px; height: 36px; background-color: #1DB954; border-radius: 50%;
+            display: flex; align-items: center; justify-content: center;
+            box-shadow: 0 6px 6px rgba(0,0,0,0.3);
+            opacity: 0; transform: translateY(8px); transition: all 0.3s ease;
+        }
+        .card:hover .play-btn-hover { opacity: 1; transform: translateY(0); }
+        .play-btn-hover:hover { background-color: #1ed760; transform: scale(1.05) !important; }
+
+        .card-title { font-weight: 700; font-size: 0.95rem; margin-bottom: 4px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .card-desc { color: #b3b3b3; font-size: 0.8rem; line-height: 1.3; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+
+        /* --- MODAL --- */
+        .modal { display: none; position: fixed; z-index: 100; left: 0; top: 0; width: 100%; height: 100%; background: #000; animation: fadeIn 0.3s; }
+        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+        .modal-header { height: 50px; padding: 0 20px; display: flex; align-items: center; background: #121212; }
+        .back-btn { background: none; border: none; color: white; font-weight: 700; cursor: pointer; display: flex; align-items: center; gap: 8px; font-size: 0.9rem; }
+        .modal-content { width: 100%; height: calc(100% - 50px); }
+        iframe { width: 100%; height: 100%; border: none; }
+    </style>
+</head>
+<body>
+
+    <div class="app-layout">
+        <div class="sidebar">
+            <div class="nav-box">
+                <div class="nav-item active" onclick="showHome()"><i class="fa-solid fa-house"></i> Home</div>
+                <div class="nav-item"><i class="fa-solid fa-magnifying-glass"></i> Search</div>
+            </div>
+            
+            <div class="nav-box" style="flex: 1; display: flex; flex-direction: column;">
+                <div class="nav-item" style="justify-content: space-between; opacity: 1;">
+                    <span style="display:flex; gap:12px; align-items:center;"><i class="fa-solid fa-lines-leaning"></i> Your Library</span>
+                    <i class="fa-solid fa-plus" style="font-size: 1rem; opacity: 0.7;"></i>
+                </div>
+                
+                <div style="display: flex; gap: 8px; margin-bottom: 10px;">
+                    <span style="background: #2a2a2a; padding: 4px 10px; border-radius: 15px; font-size: 0.7rem; font-weight: 600;">Playlists</span>
+                    <span style="background: #2a2a2a; padding: 4px 10px; border-radius: 15px; font-size: 0.7rem; font-weight: 600;">Artists</span>
+                </div>
+
+                <div class="library-list">
+                    <div class="lib-item">
+                        <img src="https://placehold.co/40/444/fff?text=LH" class="lib-img">
+                        <div class="lib-info">
+                            <h4>Liked Songs</h4>
+                            <p>📌 458 songs</p>
+                        </div>
+                    </div>
+                    <div class="lib-item">
+                        <img src="https://placehold.co/40/222/fff?text=Ph" class="lib-img">
+                        <div class="lib-info">
+                            <h4>Phonk Drift</h4>
+                            <p>Playlist • Vaishnavi</p>
+                        </div>
+                    </div>
+                     <div class="lib-item">
+                        <img src="https://placehold.co/40/666/fff?text=00s" class="lib-img">
+                        <div class="lib-info">
+                            <h4>2000s Bollywood</h4>
+                            <p>Playlist • Spotify</p>
+                        </div>
+                    </div>
+                     <div class="lib-item">
+                        <img src="https://placehold.co/40/111/fff?text=Gym" class="lib-img">
+                        <div class="lib-info">
+                            <h4>Gym Motivation</h4>
+                            <p>Playlist • Spotify</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="home-view" id="mainView">
+            
+            <div class="top-header" id="topHeader">
+                <div class="nav-arrows">
+                    <button class="arrow-btn"><i class="fa-solid fa-chevron-left"></i></button>
+                    <button class="arrow-btn"><i class="fa-solid fa-chevron-right"></i></button>
+                </div>
+                <div class="user-pill">
+                    <img src="https://placehold.co/28/1DB954/000?text=V" style="width:24px; height:24px; border-radius:50%;">
+                    <span>Vaishnavi</span>
+                </div>
+            </div>
+
+            <div class="content-container">
+                <h2 class="greeting" id="greetingText">Good Morning</h2>
+
+                <div class="wrapped-banner" onclick="openDashboard()">
+                    <div class="banner-text">
+                        <p>PRIVATE • MADE FOR YOU</p>
+                        <h1>Your 2023<br>Unwrapped</h1>
+                        <p style="margin-top: 12px; color: #fff; font-weight: 400; opacity: 0.8; font-size: 0.8rem;">Click to explore your deep dive analysis.</p>
+                    </div>
+                    <div class="play-big-btn">
+                        <i class="fa-solid fa-play" style="color: black; font-size: 1.1rem; margin-left: 3px;"></i>
+                    </div>
+                </div>
+
+                <h2 class="section-title">Recently Played</h2>
+                <div class="cards-grid">
+                    <div class="card">
+                        <div class="card-img-wrapper">
+                            <img src="https://placehold.co/180/550000/fff?text=Top+50" class="card-img">
+                            <div class="play-btn-hover"><i class="fa-solid fa-play" style="color:black;"></i></div>
+                        </div>
+                        <p class="card-title">Top 50 - India</p>
+                        <p class="card-desc">Your daily update of the most played tracks.</p>
+                    </div>
+
+                    <div class="card">
+                        <div class="card-img-wrapper">
+                            <img src="https://placehold.co/180/004400/fff?text=Daily+1" class="card-img">
+                            <div class="play-btn-hover"><i class="fa-solid fa-play" style="color:black;"></i></div>
+                        </div>
+                        <p class="card-title">Daily Mix 1</p>
+                        <p class="card-desc">Pritam, Arijit Singh, and more.</p>
+                    </div>
+
+                    <div class="card">
+                        <div class="card-img-wrapper">
+                            <img src="https://placehold.co/180/000055/fff?text=Vibes" class="card-img">
+                            <div class="play-btn-hover"><i class="fa-solid fa-play" style="color:black;"></i></div>
+                        </div>
+                        <p class="card-title">Late Night Vibes</p>
+                        <p class="card-desc">Chill beats for late night drives.</p>
+                    </div>
+                    
+                    <div class="card">
+                        <div class="card-img-wrapper">
+                            <img src="https://placehold.co/180/660066/fff?text=Podcast" class="card-img">
+                            <div class="play-btn-hover"><i class="fa-solid fa-play" style="color:black;"></i></div>
+                        </div>
+                        <p class="card-title">The Ranveer Show</p>
+                        <p class="card-desc">India's smartest podcast.</p>
+                    </div>
+                </div>
+
+                <h2 class="section-title">Your Top Mixes</h2>
+                <div class="cards-grid">
+                    <div class="card">
+                        <div class="card-img-wrapper">
+                            <img src="https://placehold.co/180/cc5500/fff?text=90s" class="card-img">
+                            <div class="play-btn-hover"><i class="fa-solid fa-play" style="color:black;"></i></div>
+                        </div>
+                        <p class="card-title">90s Bollywood</p>
+                        <p class="card-desc">Udit Narayan, Kumar Sanu, Alka Yagnik.</p>
+                    </div>
+
+                    <div class="card">
+                        <div class="card-img-wrapper">
+                            <img src="https://placehold.co/180/222222/fff?text=Focus" class="card-img">
+                            <div class="play-btn-hover"><i class="fa-solid fa-play" style="color:black;"></i></div>
+                        </div>
+                        <p class="card-title">Coding Focus</p>
+                        <p class="card-desc">No lyrics, just focus.</p>
+                    </div>
+                </div>
+
+            </div>
+        </div>
+    </div>
+
+    <div id="dashModal" class="modal">
+        <div class="modal-header">
+            <button class="back-btn" onclick="showHome()"><i class="fa-solid fa-chevron-left"></i> Back to Home</button>
+        </div>
+        <div class="modal-content">
+            <iframe src="https://app.powerbi.com/view?r=eyJrIjoiZjQ5ZWFlOGMtMDAzZi00OThkLTk0YTItNmUzYmVmZDdjZmFlIiwidCI6ImYyYjRkYWZiLWVhYWItNDU1ZC1hMDg0LWNkNWQ3ODE0MGRjOSJ9"></iframe>
+        </div>
+    </div>
+
+    <script>
+        const modal = document.getElementById("dashModal");
+        const greetingElement = document.getElementById("greetingText");
+        const mainView = document.getElementById("mainView");
+        const topHeader = document.getElementById("topHeader");
+
+        function openDashboard() { modal.style.display = "block"; }
+        function showHome() { modal.style.display = "none"; }
+
+        const hour = new Date().getHours();
+        if (hour < 12) greetingElement.innerText = "Good morning";
+        else if (hour < 18) greetingElement.innerText = "Good afternoon";
+        else greetingElement.innerText = "Good evening";
+
+        mainView.addEventListener("scroll", () => {
+            if (mainView.scrollTop > 30) {
+                topHeader.classList.add("scrolled");
+            } else {
+                topHeader.classList.remove("scrolled");
+            }
+        });
+    </script>
+</body>
+</html>
